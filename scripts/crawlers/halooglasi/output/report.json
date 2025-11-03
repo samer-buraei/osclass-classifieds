@@ -1,0 +1,15 @@
+{
+  "stats": {
+    "seed": "https://www.halooglasi.com/",
+    "domain": "halooglasi.com",
+    "max_pages": 500,
+    "delay_seconds": 1.5,
+    "max_depth": 6,
+    "visited_count": 501,
+    "collected_html_pages": 500,
+    "seeded_from_sitemap": true,
+    "resumed": false,
+    "checkpoint_path": "scripts\\crawlers\\halooglasi\\output\\checkpoint.json"
+  },
+  "count": 500
+}

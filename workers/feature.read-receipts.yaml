@@ -1,0 +1,8 @@
+task: feature-read-receipts
+context: Add read receipts and proper typing indicators via WebSocket. Preserve Socket URL shape. Update Conversation UI.
+files: ["FirstDate/src/api/Socket.js","FirstDate/src/api/ChatAPI.js","FirstDate/src/components/Conversation/**","FirstDate/src/redux/chatReducer/**"]
+test: "echo READ_RECEIPTS_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

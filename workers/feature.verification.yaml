@@ -1,0 +1,8 @@
+task: feature-verification
+context: Add verification (email/phone/photo). Store verified flags on user, surface in UI. Backwards compatible.
+files: ["FirstDate/src/components/**","FirstDate/src/pages/OnBoarding/**","FirstDate/src/api/UsersAPI.js","server/**"]
+test: "echo VERIFICATION_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

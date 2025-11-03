@@ -1,0 +1,8 @@
+task: feature-social-login
+context: Add Google (and optionally Apple) OAuth with JWT bridge. Keep current auth UX; fallback to email/password.
+files: ["FirstDate/src/pages/Landing/**","FirstDate/src/api/AuthAPI.js","FirstDate/src/redux/authReducer/**","server/**"]
+test: "echo SOCIAL_LOGIN_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

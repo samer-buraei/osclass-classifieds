@@ -1,0 +1,5 @@
+@echo off
+set FRONTEND_PORT=3000
+set BACKEND_PORT=8000
+
+

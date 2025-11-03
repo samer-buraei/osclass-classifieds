@@ -1,0 +1,8 @@
+task: feature-reporting-blocking
+context: Add report/block user flows and moderation flags. Ensure safety without breaking existing chat/match flows.
+files: ["FirstDate/src/components/**","FirstDate/src/redux/**","FirstDate/src/api/**"]
+test: "echo REPORT_BLOCK_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

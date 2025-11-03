@@ -1,0 +1,8 @@
+task: feature-push-notifications
+context: Implement web push notifications for new matches/messages. Add service worker and backend hooks. Keep API stable.
+files: ["FirstDate/public/**","FirstDate/src/**","server/**"]
+test: "echo PUSH_NOTIFS_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+
