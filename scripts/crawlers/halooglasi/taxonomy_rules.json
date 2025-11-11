@@ -1,0 +1,12 @@
+{
+  "max_depth": 3,
+  "mappings": [
+    { "pattern": "^/nekretnine/", "category": "Real Estate" },
+    { "pattern": "^/vozila/",     "category": "Vehicles" },
+    { "pattern": "^/automobili/", "category": "Vehicles/Cars" },
+    { "pattern": "^/posao/",      "category": "Jobs" },
+    { "pattern": "^/usluge/",     "category": "Services" },
+    { "pattern": "^/ljubimci/",   "category": "Pets" },
+    { "pattern": "^/tehnika/",    "category": "Electronics" }
+  ]
+}

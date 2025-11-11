@@ -1,0 +1,15 @@
+{
+  "selectors": {
+    "title": "h1, .ad-title, .title",
+    "price": ".price, [data-testid='price']",
+    "description": ".description, #description, .ad-description",
+    "location": ".location, [data-testid='location']",
+    "posted_at": ".posted, time[datetime]",
+    "image_urls": "img[data-src], img[src]"
+  },
+  "attributes": {
+    "image_urls": "src"
+  },
+  "trim": ["title", "price", "description", "location", "posted_at"],
+  "max_images": 10
+}

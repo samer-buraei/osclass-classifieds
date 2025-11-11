@@ -64,3 +64,44 @@ curl -sL [gist-url] | sh  # Creates all files, ready to `/s tinder`
 
 
 
+
+## Classifieds (Osclass) Quickstart
+
+- **Why Osclass**: Simple PHP app, large plugin ecosystem, multi-language, responsive themes, SEO-friendly, payment gateways.
+- **Repo**: `https://github.com/osclass/Osclass`
+
+### Setup (Local, Windows-friendly)
+
+1. Clone Osclass into this workspace root:
+
+```bash
+git clone https://github.com/osclass/Osclass osclass
+```
+
+2. Create a MySQL database/user (e.g., via XAMPP/WAMP or your MySQL install):
+
+```sql
+CREATE DATABASE osclass CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'osclass'@'localhost' IDENTIFIED BY 'strong_password_here';
+GRANT ALL PRIVILEGES ON osclass.* TO 'osclass'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+3. Serve the `osclass/` folder via Apache or another web server with URL rewriting enabled.
+   - Easiest on Windows: XAMPP/WAMP → set DocumentRoot to the `osclass` folder or create a VirtualHost pointing to it.
+   - Ensure `mod_rewrite` is on and `.htaccess` files are allowed for clean URLs.
+
+4. Run the installer in your browser and complete setup using your DB credentials.
+   - Navigate to your local host pointing at `osclass/` (the installer will appear on first run).
+   - After install, access the admin at `oc-admin/`.
+
+5. Post-install essentials (optional but recommended):
+   - Enable multilingual support and add locales as needed.
+   - Install theme(s) for responsive UI.
+   - Add plugins for domain features: Car Attributes, Real Estate, Stripe/PayPal gateways.
+
+### Notes
+
+- This repo does not modify Osclass; it hosts it alongside orchestrator files. Keeping it in `osclass/` at the root avoids mixing code.
+- Prefer Apache/Nginx over the PHP built-in server due to required URL rewriting.
+- For Docker users: any LAMP stack image works—mount `./osclass` to the web root, provision MySQL with the DB above, and run the web installer.

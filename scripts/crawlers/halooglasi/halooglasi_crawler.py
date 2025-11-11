@@ -27,14 +27,14 @@ ASSET_EXTENSIONS = {
     ".webp", ".ico", ".pdf", ".mp4", ".woff", ".woff2", ".ttf", ".eot",
 }
 
-OUTPUT_DIR = os.path.join("scripts", "crawlers", "halooglasi", "output")
-DEFAULT_CHECKPOINT = os.path.join(OUTPUT_DIR, "checkpoint.json")
+DEFAULT_OUTPUT_DIR = os.path.join("scripts", "crawlers", "halooglasi", "output")
 
 
 @dataclass
 class CrawlConfig:
     seed: str
     domain: str
+    output_dir: str
     max_pages: int = 500
     delay_seconds: float = 1.5
     max_depth: int = 6
@@ -45,7 +45,7 @@ class CrawlConfig:
     progress_every: int = 25
     verbose: bool = False
     resume: bool = False
-    checkpoint_path: str = DEFAULT_CHECKPOINT
+    checkpoint_path: str = ""
     checkpoint_every: int = 50
     log_discoveries: bool = False
     discoveries_per_page: int = 10
@@ -53,6 +53,7 @@ class CrawlConfig:
     export_tree_json: bool = True
     export_sitemap: bool = True
     export_edges: bool = False
+    cookies_file: str = ""
 
 
 class RobotsAgent:
@@ -265,6 +266,34 @@ class CrawlerAgent:
         self.robots = robots
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.config.user_agent})
+        # Load cookies if provided (expects Playwright-style list [{name,value,domain,path}]) or Netscape cookiefile
+        if self.config.cookies_file:
+            try:
+                if self.config.cookies_file.lower().endswith(('.json', '.jsonl')):
+                    with open(self.config.cookies_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    if isinstance(data, list):
+                        for c in data:
+                            try:
+                                name = c.get('name'); value = c.get('value')
+                                domain = c.get('domain', self.config.domain)
+                                path = c.get('path', '/')
+                                if name is None or value is None:
+                                    continue
+                                cookie = requests.cookies.create_cookie(name=name, value=value, domain=domain, path=path)
+                                self.session.cookies.set_cookie(cookie)
+                            except Exception:
+                                continue
+                else:
+                    # Try reading Netscape cookie file format
+                    from http.cookiejar import MozillaCookieJar
+                    cj = MozillaCookieJar()
+                    cj.load(self.config.cookies_file, ignore_discard=True, ignore_expires=True)
+                    for c in cj:
+                        self.session.cookies.set_cookie(c)
+                print(f"[init] Loaded cookies from {self.config.cookies_file}", flush=True)
+            except Exception as e:
+                print(f"[warn] Failed to load cookies: {e}", flush=True)
         self.seen: Set[str] = set()
         self.collected: Set[str] = set()
         self.titles: Dict[str, str] = {}
@@ -311,11 +340,11 @@ class CrawlerAgent:
             pass
         return None
 
-    def _print_progress(self, pages_fetched: int, queue_len: int) -> None:
+    def _print_progress(self, pages_fetched: int, queue_len: int, depth: int) -> None:
         if self.config.progress_every <= 0:
             return
         if pages_fetched % self.config.progress_every == 0:
-            print(f"[progress] pages={pages_fetched} | queue={queue_len} | seen={len(self.seen)}", flush=True)
+            print(f"[progress] pages={pages_fetched} | queue={queue_len} | seen={len(self.seen)} | depth={depth}", flush=True)
 
     def _save_checkpoint(self, queue: deque, pages_fetched: int) -> None:
         try:
@@ -328,6 +357,8 @@ class CrawlerAgent:
                 "timestamp": int(time.time()),
                 "domain": self.config.domain,
                 "seed": self.config.seed,
+                "output_dir": self.config.output_dir,
+                "max_depth": self.config.max_depth,
             }
             os.makedirs(os.path.dirname(self.config.checkpoint_path), exist_ok=True)
             with open(self.config.checkpoint_path, "w", encoding="utf-8") as f:
@@ -386,7 +417,7 @@ class CrawlerAgent:
             title, links = self._extract_links(url, html)
             if title:
                 self.titles[url] = title
-            self._print_progress(pages_fetched, len(queue))
+            self._print_progress(pages_fetched, len(queue), depth)
             printed_for_page = 0
             for link in links:
                 if link not in enqueued and link not in self.seen:
@@ -415,6 +446,7 @@ def infer_domain(seed: str) -> str:
 def parse_args(argv: List[str]) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Polite crawler for halooglasi.com")
     ap.add_argument("--seed", default="https://www.halooglasi.com/", help="Seed URL to start crawling")
+    ap.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Directory to write outputs and checkpoints")
     ap.add_argument("--max-pages", type=int, default=500, help="Max HTML pages to fetch")
     ap.add_argument("--delay-seconds", type=float, default=1.5, help="Delay between requests")
     ap.add_argument("--max-depth", type=int, default=6, help="Max crawl depth from the seed")
@@ -423,7 +455,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     ap.add_argument("--progress-every", type=int, default=25, help="Print progress every N fetched pages (0=disable)")
     ap.add_argument("--verbose", action="store_true", help="Print each visited URL and depth")
     ap.add_argument("--resume", action="store_true", help="Resume from checkpoint if present")
-    ap.add_argument("--checkpoint-path", default=DEFAULT_CHECKPOINT, help="Path to checkpoint file")
+    ap.add_argument("--checkpoint-path", default="", help="Path to checkpoint file (defaults to output-dir/checkpoint.json)")
     ap.add_argument("--checkpoint-every", type=int, default=50, help="Checkpoint every N fetched pages (0=disable)")
     ap.add_argument("--log-discoveries", action="store_true", help="Print each newly discovered internal link as it is enqueued")
     ap.add_argument("--discoveries-per-page", type=int, default=10, help="Max discovery lines to print per fetched page (0=unlimited)")
@@ -431,6 +463,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     ap.add_argument("--no-export-tree-json", dest="export_tree_json", action="store_false", help="Disable exporting tree.json")
     ap.add_argument("--no-export-sitemap", dest="export_sitemap", action="store_false", help="Disable generating sitemap.generated.xml")
     ap.add_argument("--export-edges", action="store_true", help="Export link graph edges to edges.jsonl")
+    ap.add_argument("--cookies-file", default="", help="Path to cookies file (Playwright JSON or Netscape cookies.txt)")
     ap.set_defaults(export_pages=True, export_tree_json=True, export_sitemap=True)
     return ap.parse_args(argv)
 
@@ -450,9 +483,15 @@ def main(argv: List[str]) -> int:
     domain = infer_domain(args.seed)
     if not domain.endswith("halooglasi.com"):
         print(f"[guard] This tool is configured for halooglasi.com; got domain '{domain}'. Proceeding anyway but filtering to '{domain}'.", flush=True)
+
+    output_dir = args.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+    checkpoint_path = args.checkpoint_path or os.path.join(output_dir, "checkpoint.json")
+
     config = CrawlConfig(
         seed=args.seed,
         domain=domain,
+        output_dir=output_dir,
         max_pages=args.max_pages,
         delay_seconds=args.delay_seconds,
         max_depth=args.max_depth,
@@ -461,7 +500,7 @@ def main(argv: List[str]) -> int:
         progress_every=args.progress_every,
         verbose=args.verbose,
         resume=args.resume,
-        checkpoint_path=args.checkpoint_path,
+        checkpoint_path=checkpoint_path,
         checkpoint_every=args.checkpoint_every,
         log_discoveries=args.log_discoveries,
         discoveries_per_page=args.discoveries_per_page,
@@ -469,9 +508,8 @@ def main(argv: List[str]) -> int:
         export_tree_json=args.export_tree_json,
         export_sitemap=args.export_sitemap,
         export_edges=args.export_edges,
+        cookies_file=args.cookies_file,
     )
-
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("[init] Loading robots.txt …", flush=True)
     robots = RobotsAgent(config.seed, config.user_agent)
@@ -504,6 +542,7 @@ def main(argv: List[str]) -> int:
     stats = {
         "seed": config.seed,
         "domain": config.domain,
+        "output_dir": config.output_dir,
         "max_pages": config.max_pages,
         "delay_seconds": config.delay_seconds,
         "max_depth": config.max_depth,
@@ -515,7 +554,7 @@ def main(argv: List[str]) -> int:
     }
 
     print(f"[done] Collected {len(collected)} internal HTML pages. Exporting results …", flush=True)
-    reporter = ReporterAgent(OUTPUT_DIR, seed_url=config.seed)
+    reporter = ReporterAgent(config.output_dir, seed_url=config.seed)
     reporter.export(collected, stats)
     if config.export_pages:
         reporter.export_pages(crawler.titles)
@@ -530,7 +569,7 @@ def main(argv: List[str]) -> int:
         reporter.export_sitemap(collected)
     if config.export_edges:
         reporter.export_edges(crawler.edges)
-    print(f"[ok] Wrote outputs in: {OUTPUT_DIR}", flush=True)
+    print(f"[ok] Wrote outputs in: {config.output_dir}", flush=True)
     return 0
 
 
