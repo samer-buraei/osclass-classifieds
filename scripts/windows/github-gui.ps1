@@ -32,8 +32,79 @@ function Run-Git($args, $dir) {
   if ($err) { Append-Log ("ERR: " + $err.Trim()) }
   return $p.ExitCode
 }
+function Git-Out($args, $dir) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = "git"
+  $psi.Arguments = $args
+  $psi.WorkingDirectory = $dir
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.UseShellExecute = $false
+  $p = New-Object System.Diagnostics.Process
+  $p.StartInfo = $psi
+  [void]$p.Start()
+  $out = $p.StandardOutput.ReadToEnd()
+  $err = $p.StandardError.ReadToEnd()
+  $p.WaitForExit()
+  if ($err) { Append-Log ("ERR: " + $err.Trim()) }
+  return $out
+}
 function Has-Gh() {
   try { (Get-Command gh -ErrorAction Stop) | Out-Null; return $true } catch { return $false }
+}
+function Get-GitHubCred() {
+  $file = Join-Path $env:USERPROFILE ".git-credentials"
+  if (-not (Test-Path $file)) { return $null }
+  $line = Get-Content $file -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $line) { return $null }
+  # Expect: https://user:token@github.com
+  if ($line -match "^https://([^:]+):([^@]+)@github\.com") {
+    return @{ user = $Matches[1]; token = $Matches[2] }
+  }
+  return $null
+}
+function Create-RepoAPI($owner, $name, $isPrivate, $desc) {
+  $cred = Get-GitHubCred
+  if (-not $cred) { Append-Log "No GitHub credentials found. Run github-login.bat first."; return $false }
+  $headers = @{ "Authorization" = "token $($cred.token)"; "User-Agent" = "git-gui" }
+  $body = @{ name = $name; private = [bool]$isPrivate; description = $desc } | ConvertTo-Json
+  try {
+    if ($owner -and ($owner -ne $cred.user)) {
+      $url = "https://api.github.com/orgs/$owner/repos"
+    } else {
+      $url = "https://api.github.com/user/repos"
+    }
+    Append-Log ("Creating repo via API: " + $owner + "/" + $name)
+    $resp = Invoke-RestMethod -Method Post -Headers $headers -Uri $url -Body $body -ContentType "application/json"
+    if ($resp.clone_url) { Append-Log ("Created: " + $resp.clone_url); return $resp.clone_url }
+  } catch {
+    Append-Log ("ERR: Repo create failed: " + $_.Exception.Message)
+    return $false
+  }
+}
+function Ensure-GitRepo($dir) {
+  $exit = Run-Git "rev-parse --is-inside-work-tree" $dir
+  if ($exit -ne 0) {
+    Append-Log "Initializing git repository..."
+    Run-Git "init" $dir | Out-Null
+    Run-Git "add -A" $dir | Out-Null
+    Run-Git "commit -m `"chore: init`"" $dir | Out-Null
+  }
+  Run-Git "branch -M main" $dir | Out-Null
+}
+function Ensure-Remote($dir, $url) {
+  $hadOrigin = (Run-Git "remote get-url origin" $dir) -eq 0
+  if ($hadOrigin) {
+    Append-Log "origin already set."
+    return $true
+  }
+  if (-not $url) {
+    Append-Log "No remote URL provided."
+    return $false
+  }
+  Run-Git "remote add origin `"$url`"" $dir | Out-Null
+  $ok = (Run-Git "remote get-url origin" $dir) -eq 0
+  if ($ok) { Append-Log "origin set."; return $true } else { Append-Log "Failed to set origin."; return $false }
 }
 function Run-Gh($args, $dir) {
   $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -83,13 +154,38 @@ $RemoteUrl.Location = New-Object System.Drawing.Point(140,46)
 $RemoteUrl.Size = New-Object System.Drawing.Size(650,24)
 $Form.Controls.Add($RemoteUrl)
 
-$StatusBtn = New-Button "Git Status" 10 80
-$DetectRemoteBtn = New-Button "Detect Remote" 140 80
-$SetRemoteBtn = New-Button "Set Remote" 270 80
-$ForkBtn = New-Button "Fork (gh)" 400 80
-$PushBtn = New-Button "Push" 510 80
-$PullBtn = New-Button "Pull --rebase" 590 80 120 30
-$VerifyBtn = New-Button "Verify Remote HEAD" 720 80 80 30
+# Owner/Repo inputs
+$Form.Controls.Add((New-Label "Owner" 10 80 60 20))
+$OwnerBox = New-Object System.Windows.Forms.TextBox
+$OwnerBox.Location = New-Object System.Drawing.Point(70,76)
+$OwnerBox.Size = New-Object System.Drawing.Size(150,24)
+$cred = Get-GitHubCred
+if ($cred) { $OwnerBox.Text = $cred.user }
+$Form.Controls.Add($OwnerBox)
+$Form.Controls.Add((New-Label "Repo Name" 230 80 80 20))
+$RepoNameBox = New-Object System.Windows.Forms.TextBox
+$RepoNameBox.Location = New-Object System.Drawing.Point(310,76)
+$RepoNameBox.Size = New-Object System.Drawing.Size(180,24)
+# default to folder name
+$RepoNameBox.Text = (Split-Path $defaultRepoPath -Leaf)
+$Form.Controls.Add($RepoNameBox)
+$PrivateChk = New-Object System.Windows.Forms.CheckBox
+$PrivateChk.Text = "Private"
+$PrivateChk.Location = New-Object System.Drawing.Point(500,78)
+$PrivateChk.Size = New-Object System.Drawing.Size(70,24)
+$Form.Controls.Add($PrivateChk)
+$CreateRepoBtn = New-Button "Create Repo (API)" 580 76 120 28
+$Form.Controls.Add($CreateRepoBtn)
+$AutoSetupBtn = New-Button "Auto Setup + Push" 710 76 90 28
+$Form.Controls.Add($AutoSetupBtn)
+
+$StatusBtn = New-Button "Git Status" 10 110
+$DetectRemoteBtn = New-Button "Detect Remote" 140 110
+$SetRemoteBtn = New-Button "Set Remote" 270 110
+$ForkBtn = New-Button "Fork (gh)" 400 110
+$PushBtn = New-Button "Push" 510 110
+$PullBtn = New-Button "Pull --rebase" 590 110 120 30
+$VerifyBtn = New-Button "Verify Remote HEAD" 720 110 80 30
 
 $Form.Controls.Add($StatusBtn)
 $Form.Controls.Add($DetectRemoteBtn)
@@ -100,12 +196,66 @@ $Form.Controls.Add($PullBtn)
 $Form.Controls.Add($VerifyBtn)
 
 $LogBox = New-Object System.Windows.Forms.TextBox
-$LogBox.Location = New-Object System.Drawing.Point(10,120)
+$LogBox.Location = New-Object System.Drawing.Point(10,150)
 $LogBox.Size = New-Object System.Drawing.Size(790,390)
 $LogBox.Multiline = $true
 $LogBox.ScrollBars = "Vertical"
 $LogBox.ReadOnly = $true
 $Form.Controls.Add($LogBox)
+
+$CreateRepoBtn.Add_Click({
+  $owner = $OwnerBox.Text
+  $name = $RepoNameBox.Text
+  $isPrivate = $PrivateChk.Checked
+  if ([string]::IsNullOrWhiteSpace($owner) -or [string]::IsNullOrWhiteSpace($name)) { Append-Log "Owner/Repo required."; return }
+  $cloneUrl = Create-RepoAPI $owner $name $isPrivate ""
+  if ($cloneUrl) { $RemoteUrl.Text = $cloneUrl; Append-Log "Repo created and URL populated." }
+})
+
+$AutoSetupBtn.Add_Click({
+  $dir = $RepoPath.Text
+  Append-Log "Auto setup starting..."
+  Ensure-GitRepo $dir
+  $url = $RemoteUrl.Text
+  if (-not $url) {
+    $owner = $OwnerBox.Text
+    $name = $RepoNameBox.Text
+    if ([string]::IsNullOrWhiteSpace($owner) -or [string]::IsNullOrWhiteSpace($name)) {
+      Append-Log "Owner/Repo required to create remote."
+      return
+    }
+    $cloneUrl = Create-RepoAPI $owner $name $PrivateChk.Checked ""
+    if (-not $cloneUrl) { Append-Log "Failed to create repo via API."; return }
+    $RemoteUrl.Text = $cloneUrl
+    $url = $cloneUrl
+  }
+  if (-not (Ensure-Remote $dir $url)) { return }
+  Append-Log "Staging changes..."
+  Run-Git "add -A" $dir | Out-Null
+  $dirty = git -C "$dir" status --porcelain
+  if ($dirty) {
+    Append-Log "Committing..."
+    Run-Git "commit -m `"chore: update`"" $dir | Out-Null
+  } else {
+    Append-Log "No changes to commit."
+  }
+  Append-Log "Pushing to origin/main..."
+  Run-Git "branch -M main" $dir | Out-Null
+  $exit = Run-Git "push -u origin main" $dir
+  if ($exit -eq 0) {
+    Append-Log "Push OK."
+    # Verify
+    $local = (git -C "$dir" rev-parse HEAD).Trim()
+    $remoteLine = (git -C "$dir" ls-remote origin HEAD) 2>$null
+    $remote = ""
+    if ($remoteLine) { $remote = ($remoteLine -split "`t")[0] }
+    Append-Log ("Local:  " + $local)
+    Append-Log ("Remote: " + $remote)
+    if ($remote -and ($remote -eq $local)) { Append-Log "MATCH: Remote HEAD matches local." }
+  } else {
+    Append-Log "Push failed. Check credentials or remote permissions."
+  }
+})
 
 $StatusBtn.Add_Click({
   $dir = $RepoPath.Text
@@ -116,14 +266,13 @@ $StatusBtn.Add_Click({
 $DetectRemoteBtn.Add_Click({
   $dir = $RepoPath.Text
   Append-Log "Detecting remote: git remote -v"
-  $tmpFile = [System.IO.Path]::GetTempFileName()
-  $code = Run-Git "remote -v" $dir
-  if ($code -eq 0) {
-    $output = git -C "$dir" remote -v 2>$null
-    $origin = $output | Where-Object { $_ -like "origin* (fetch)" }
+  $out = Git-Out "remote -v" $dir
+  if ($out) {
+    $lines = $out -split "`r?`n"
+    $origin = $lines | Where-Object { $_ -like "origin* (fetch)" }
     if ($origin) {
       $parts = $origin -split "\s+"
-      if ($parts.Length -ge 2) { $RemoteUrl.Text = $parts[1]; Append-Log ("Found origin: " + $parts[1]) }
+      if ($parts.Length -ge 2) { $RemoteUrl.Text = $parts[1]; Append-Log ("Found origin: " + $parts[1]) } else { Append-Log "origin parse failed." }
     } else { Append-Log "No origin remote found." }
   } else { Append-Log "git remote -v failed." }
 })
@@ -134,7 +283,7 @@ $SetRemoteBtn.Add_Click({
   if ([string]::IsNullOrWhiteSpace($url)) { Append-Log "Remote URL is empty."; return }
   Append-Log ("Setting remote to: " + $url)
   Run-Git "remote remove origin" $dir | Out-Null
-  $exit = Run-Git ("remote add origin `"" + $url + "`"") $dir
+  $exit = Run-Git ("remote add origin " + $url) $dir
   if ($exit -eq 0) { Append-Log "origin set." } else { Append-Log "Failed to set origin." }
 })
 
