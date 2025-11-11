@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: osclass_app
+    restart: unless-stopped
+    working_dir: /var/www
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/php.ini:/usr/local/etc/php/conf.d/local.ini
+    environment:
+      - APP_ENV=production
+      - BASE_URL=http://localhost:8080
+      - DB_HOST=db
+      - DB_NAME=osclass_db
+      - DB_USER=osclass_user
+      - DB_PASS=osclass_password
+    depends_on:
+      - db
+    networks:
+      - osclass_network
+
+  db:
+    image: mysql:8.0
+    container_name: osclass_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: osclass_db
+      MYSQL_USER: osclass_user
+      MYSQL_PASSWORD: osclass_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - osclass_network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: osclass_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_USER: osclass_user
+      PMA_PASSWORD: osclass_password
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    networks:
+      - osclass_network
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  osclass_network:
+    driver: bridge

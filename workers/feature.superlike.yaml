@@ -1,0 +1,8 @@
+task: feature-superlike
+context: Implement Super Like. Use existing Star icon in Cards footer. Persist as priority match without breaking normal matches.
+files: ["FirstDate/src/components/CardsContainer/index.js","FirstDate/src/api/MatchAPI.js","FirstDate/src/redux/matchReducer/**"]
+test: "echo SUPERLIKE_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

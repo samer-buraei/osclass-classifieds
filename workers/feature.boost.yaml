@@ -1,0 +1,8 @@
+task: feature-boost
+context: Implement Boost to increase profile visibility temporarily. Wire the Bolt icon. Avoid altering auth/routing.
+files: ["FirstDate/src/components/CardsContainer/index.js","FirstDate/src/redux/**","FirstDate/src/api/UsersAPI.js"]
+test: "echo BOOST_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

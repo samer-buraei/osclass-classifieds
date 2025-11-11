@@ -1,0 +1,8 @@
+task: backend-analysis
+context: Use FirstDate/docs/context.md and scan endpoints to propose the simplest OSS backend and a mapping plan.
+files: ["FirstDate/docs/context.md","FirstDate/docs/api-endpoints.json","FirstDate/src/api/*","FirstDate/src/api/Socket.js"]
+test: "node scripts/backend/scan-endpoints.js && echo ANALYSIS_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

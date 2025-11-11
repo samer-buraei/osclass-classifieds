@@ -1,0 +1,8 @@
+task: feature-subscriptions
+context: Add Plus/Gold style subscriptions and paywalling (Super Like/Boost/Passport). Feature flags in client.
+files: ["FirstDate/src/**","server/**"]
+test: "echo SUBSCRIPTIONS_OK"
+max_tries: 3
+return: { done, files, tests, next }
+
+

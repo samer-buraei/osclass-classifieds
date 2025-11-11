@@ -1,0 +1,36 @@
+# Config
+/config/config.php
+
+# Uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# Cache
+/cache/*
+!/cache/.gitkeep
+
+# Logs
+/logs/*
+!/logs/.gitkeep
+
+# Dependencies
+/vendor/
+composer.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Environment
+.env
+.env.local
